@@ -1,5 +1,5 @@
 Flask
 pandas
-pyodbc
+mysql-connector
 openpyxl
 Werkzeug
