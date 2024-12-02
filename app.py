@@ -36,7 +36,13 @@ def verify_connection():
         print(f"Erreur de connexion à la base de données : {e}")
         return False
 
-# Fonction pour nettoyer les données, remplacer les NaN par une valeur par défaut
+# Valider les colonnes nécessaires dans les feuilles
+def validate_columns(sheet_name, df, required_columns):
+    missing_columns = [col for col in required_columns if col not in df.columns]
+    if missing_columns:
+        raise ValueError(f"La feuille '{sheet_name}' manque les colonnes obligatoires : {', '.join(missing_columns)}")
+
+# Nettoyer les données, remplacer les NaN par une valeur par défaut
 def clean_data(data):
     for sheet_name, df in data.items():
         print(f"Feuille lue : {sheet_name}")
@@ -68,11 +74,15 @@ def insert_data_to_db(data):
         conn = mysql.connect(**db_config)
         cursor = conn.cursor()
 
+        # Désactiver les vérifications de clés étrangères
+        cursor.execute("SET FOREIGN_KEY_CHECKS = 0;")
+
         # Nettoyer les données avant l'insertion
         data = clean_data(data)
 
         # Insérer les services
         if "SERVICE" in data:
+            validate_columns("SERVICE", data["SERVICE"], ['NUMSERVICE', 'NOMSERVICE', 'LOCALITE'])
             for _, row in data["SERVICE"].iterrows():
                 print(f"Insertion SERVICE : {row}")  # Affichage avant insertion
                 cursor.execute(
@@ -83,6 +93,7 @@ def insert_data_to_db(data):
 
         # Insérer les employés
         if "EMPLOYE" in data:
+            validate_columns("EMPLOYE", data["EMPLOYE"], ['NUMEMP', 'NUMSERVICE', 'EMP_NUMEMP', 'NOMEMP', 'FONCTION', 'DATEEMB', 'SALAIRE', 'COMM'])
             for _, row in data["EMPLOYE"].iterrows():
                 print(f"Insertion EMPLOYE : {row}")  # Affichage avant insertion
                 cursor.execute(
@@ -94,6 +105,7 @@ def insert_data_to_db(data):
 
         # Insérer les indemnités
         if "INDEMNITE" in data:
+            validate_columns("INDEMNITE", data["INDEMNITE"], ['CODEIND', 'NIVEAU', 'MONTANT'])
             for _, row in data["INDEMNITE"].iterrows():
                 print(f"Insertion INDEMNITE : {row}")  # Affichage avant insertion
                 cursor.execute(
@@ -104,6 +116,7 @@ def insert_data_to_db(data):
 
         # Insérer les enfants
         if "ENFANT" in data:
+            validate_columns("ENFANT", data["ENFANT"], ['NUMENF', 'PRENOM', 'AGE', 'CODEIND', 'NUMEMP'])
             for _, row in data["ENFANT"].iterrows():
                 print(f"Insertion ENFANT : {row}")  # Affichage avant insertion
                 cursor.execute(
@@ -114,10 +127,18 @@ def insert_data_to_db(data):
 
         conn.commit()
         print("Insertion des données réussie.")
+
+        # Réactiver les vérifications de clés étrangères
+        cursor.execute("SET FOREIGN_KEY_CHECKS = 1;")
+
         cursor.close()
         conn.close()
+    except ValueError as ve:
+        print(f"Erreur de validation : {ve}")
+        flash(f"Erreur de validation : {ve}")
     except Exception as e:
         print(f"Erreur lors de l'insertion des données : {e}")
+        flash(f"Erreur lors de l'insertion des données : {e}")
 
 # Route d'upload
 @app.route('/', methods=['GET', 'POST'])
